@@ -168,9 +168,8 @@ export function MermaidVisualizer() {
       const allElements = svgClone.querySelectorAll("*")
       allElements.forEach((el) => {
         if (el instanceof SVGElement) {
-          const computedStyle = window.getComputedStyle(
-            svgElement.querySelector(`#${el.id}`) || el
-          )
+          // Get computed style directly from the cloned element
+          const computedStyle = window.getComputedStyle(el)
           // Copy important style properties
           const fill = el.getAttribute("fill") || computedStyle.fill
           const stroke = el.getAttribute("stroke") || computedStyle.stroke
