@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import mermaid from "mermaid"
-import { Download, Sun, Moon, Palette, AlertCircle } from "lucide-react"
+import { Download, Sun, Moon, Palette, AlertCircle, ZoomIn, ZoomOut, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 
-type MermaidTheme = "default" | "neutral" | "dark" | "forest"
+type MermaidTheme = "default" | "neutral" | "dark" | "forest" | "base"
 
 interface ThemeOption {
   name: string
@@ -24,7 +24,11 @@ const themes: ThemeOption[] = [
   { name: "Neutral", value: "neutral", description: "Grayscale palette" },
   { name: "Dark", value: "dark", description: "Dark background" },
   { name: "Forest", value: "forest", description: "Green tones" },
+  { name: "Base", value: "base", description: "Minimal styling" },
 ]
+
+const ZOOM_LEVELS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3]
+const DEFAULT_ZOOM = 1
 
 const defaultCode = `flowchart TD
     A[Start] --> B{Is it working?}
@@ -39,8 +43,32 @@ export function MermaidVisualizer() {
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [svg, setSvg] = useState<string>("")
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM)
   const previewRef = useRef<HTMLDivElement>(null)
   const renderIdRef = useRef(0)
+
+  // Zoom controls
+  const zoomIn = () => {
+    const currentIndex = ZOOM_LEVELS.indexOf(zoom)
+    if (currentIndex < ZOOM_LEVELS.length - 1) {
+      setZoom(ZOOM_LEVELS[currentIndex + 1])
+    } else if (currentIndex === -1) {
+      const nextLevel = ZOOM_LEVELS.find(l => l > zoom)
+      if (nextLevel) setZoom(nextLevel)
+    }
+  }
+
+  const zoomOut = () => {
+    const currentIndex = ZOOM_LEVELS.indexOf(zoom)
+    if (currentIndex > 0) {
+      setZoom(ZOOM_LEVELS[currentIndex - 1])
+    } else if (currentIndex === -1) {
+      const prevLevel = [...ZOOM_LEVELS].reverse().find(l => l < zoom)
+      if (prevLevel) setZoom(prevLevel)
+    }
+  }
+
+  const resetZoom = () => setZoom(DEFAULT_ZOOM)
 
   // Initialize dark mode from system preference
   useEffect(() => {
@@ -72,7 +100,7 @@ export function MermaidVisualizer() {
       startOnLoad: false,
       theme: mermaidTheme,
       securityLevel: "loose",
-      fontFamily: "inherit",
+      fontFamily: "Inter, system-ui, sans-serif",
     })
 
     try {
@@ -98,7 +126,7 @@ export function MermaidVisualizer() {
     return () => clearTimeout(timeout)
   }, [renderDiagram])
 
-  // Download as PNG
+  // Download as PNG via server-side conversion
   const downloadPng = async () => {
     if (!svg || !previewRef.current) return
 
@@ -106,64 +134,46 @@ export function MermaidVisualizer() {
     if (!svgElement) return
 
     try {
-      // Get actual SVG dimensions
+      // Clone and prepare SVG with explicit dimensions
+      const svgClone = svgElement.cloneNode(true) as SVGSVGElement
       const bbox = svgElement.getBBox()
-      const padding = 20
+      const padding = 40
       const width = Math.ceil(bbox.width) + padding * 2
       const height = Math.ceil(bbox.height) + padding * 2
-      const scale = 2
+      
+      svgClone.setAttribute("width", String(width))
+      svgClone.setAttribute("height", String(height))
+      svgClone.setAttribute("xmlns", "http://www.w3.org/2000/svg")
+      
+      // Add background rect
+      const bgRect = document.createElementNS("http://www.w3.org/2000/svg", "rect")
+      bgRect.setAttribute("width", "100%")
+      bgRect.setAttribute("height", "100%")
+      bgRect.setAttribute("fill", isDarkMode ? "#1f1f1f" : "#ffffff")
+      svgClone.insertBefore(bgRect, svgClone.firstChild)
 
-      // Create canvas
-      const canvas = document.createElement("canvas")
-      canvas.width = width * scale
-      canvas.height = height * scale
+      const svgData = new XMLSerializer().serializeToString(svgClone)
 
-      const ctx = canvas.getContext("2d", { willReadFrequently: true })
-      if (!ctx) return
+      // Send to API for conversion
+      const response = await fetch("/api/convert-svg", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ svg: svgData, width: width * 2, height: height * 2 }),
+      })
 
-      // Fill background
-      ctx.fillStyle = isDarkMode ? "#1f1f1f" : "#ffffff"
-      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      if (!response.ok) throw new Error("Conversion failed")
 
-      // Serialize SVG
-      const svgData = new XMLSerializer().serializeToString(svgElement)
-      const svg64 = btoa(unescape(encodeURIComponent(svgData)))
-      const dataUrl = `data:image/svg+xml;base64,${svg64}`
-
-      // Create image and load SVG
-      const img = new Image()
-      img.onload = () => {
-        try {
-          ctx.scale(scale, scale)
-          ctx.drawImage(img, padding, padding)
-          
-          // Convert to blob and download
-          canvas.toBlob(
-            (blob) => {
-              if (!blob) return
-              const url = URL.createObjectURL(blob)
-              const link = document.createElement("a")
-              link.href = url
-              link.download = "mermaid-diagram.png"
-              document.body.appendChild(link)
-              link.click()
-              document.body.removeChild(link)
-              URL.revokeObjectURL(url)
-            },
-            "image/png"
-          )
-        } catch (err) {
-          console.error("[v0] Error drawing image to canvas:", err)
-        }
-      }
-
-      img.onerror = () => {
-        console.error("[v0] Error loading SVG image")
-      }
-
-      img.src = dataUrl
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = "mermaid-diagram.png"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
     } catch (err) {
-      console.error("[v0] Download error:", err)
+      console.error("Download error:", err)
     }
   }
 
@@ -257,10 +267,45 @@ export function MermaidVisualizer() {
 
         {/* Preview Panel */}
         <div className="flex h-1/2 flex-col md:h-full md:w-1/2">
-          <div className="flex h-10 shrink-0 items-center border-b border-border bg-muted/30 px-4">
+          <div className="flex h-10 shrink-0 items-center justify-between border-b border-border bg-muted/30 px-4">
             <span className="text-xs font-medium text-muted-foreground">
               PREVIEW
             </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={zoomOut}
+                disabled={zoom <= ZOOM_LEVELS[0]}
+              >
+                <ZoomOut className="h-3.5 w-3.5" />
+              </Button>
+              <button
+                onClick={resetZoom}
+                className="min-w-[3.5rem] rounded px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              >
+                {Math.round(zoom * 100)}%
+              </button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={zoomIn}
+                disabled={zoom >= ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
+              >
+                <ZoomIn className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={resetZoom}
+                title="Reset zoom"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
           <div className="flex-1 overflow-auto bg-card p-4">
             {error ? (
@@ -278,7 +323,11 @@ export function MermaidVisualizer() {
             ) : svg ? (
               <div
                 ref={previewRef}
-                className="mermaid-preview flex items-center justify-center"
+                className="mermaid-preview flex min-h-full min-w-full items-center justify-center"
+                style={{
+                  transform: `scale(${zoom})`,
+                  transformOrigin: "center center",
+                }}
                 dangerouslySetInnerHTML={{ __html: svg }}
               />
             ) : (

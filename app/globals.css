@@ -51,6 +51,7 @@
 @theme inline {
   --font-sans: 'Geist', 'Geist Fallback';
   --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --font-diagram: 'Inter', system-ui, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -87,8 +88,16 @@
 
 /* Mermaid diagram container styles */
 .mermaid-preview svg {
-  max-width: 100%;
+  max-width: none;
   height: auto;
+  font-family: var(--font-diagram);
+}
+
+.mermaid-preview svg text,
+.mermaid-preview svg .nodeLabel,
+.mermaid-preview svg .edgeLabel,
+.mermaid-preview svg .label {
+  font-family: var(--font-diagram) !important;
 }
 
 /* Custom scrollbar for code editor */
