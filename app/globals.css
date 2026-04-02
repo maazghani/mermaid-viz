@@ -90,14 +90,24 @@
 .mermaid-preview svg {
   max-width: none;
   height: auto;
-  font-family: var(--font-diagram);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 .mermaid-preview svg text,
 .mermaid-preview svg .nodeLabel,
 .mermaid-preview svg .edgeLabel,
-.mermaid-preview svg .label {
-  font-family: var(--font-diagram) !important;
+.mermaid-preview svg .label,
+.mermaid-preview svg .labelText,
+.mermaid-preview svg foreignObject {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.mermaid-preview svg .node rect,
+.mermaid-preview svg .node polygon,
+.mermaid-preview svg .node circle {
+  stroke-width: 1.5px;
 }
 
 /* Custom scrollbar for code editor */

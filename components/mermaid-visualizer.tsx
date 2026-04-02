@@ -17,14 +17,15 @@ interface ThemeOption {
   name: string
   value: MermaidTheme
   description: string
+  preview: string // Color preview
 }
 
 const themes: ThemeOption[] = [
-  { name: "Default", value: "default", description: "Clean blue tones" },
-  { name: "Neutral", value: "neutral", description: "Grayscale palette" },
-  { name: "Dark", value: "dark", description: "Dark background" },
-  { name: "Forest", value: "forest", description: "Green tones" },
-  { name: "Base", value: "base", description: "Minimal styling" },
+  { name: "Default", value: "default", description: "Clean blue tones", preview: "#4a90d9" },
+  { name: "Neutral", value: "neutral", description: "Grayscale palette", preview: "#6b7280" },
+  { name: "Dark", value: "dark", description: "Dark background", preview: "#374151" },
+  { name: "Forest", value: "forest", description: "Green tones", preview: "#059669" },
+  { name: "Base", value: "base", description: "Minimal styling", preview: "#9ca3af" },
 ]
 
 const ZOOM_LEVELS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3]
@@ -100,7 +101,11 @@ export function MermaidVisualizer() {
       startOnLoad: false,
       theme: mermaidTheme,
       securityLevel: "loose",
-      fontFamily: "Inter, system-ui, sans-serif",
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+      flowchart: {
+        htmlLabels: true,
+        curve: "basis",
+      },
     })
 
     try {
@@ -137,20 +142,42 @@ export function MermaidVisualizer() {
       // Clone and prepare SVG with explicit dimensions
       const svgClone = svgElement.cloneNode(true) as SVGSVGElement
       const bbox = svgElement.getBBox()
-      const padding = 40
+      const padding = 60
       const width = Math.ceil(bbox.width) + padding * 2
       const height = Math.ceil(bbox.height) + padding * 2
       
+      // Set proper SVG attributes for standalone rendering
       svgClone.setAttribute("width", String(width))
       svgClone.setAttribute("height", String(height))
       svgClone.setAttribute("xmlns", "http://www.w3.org/2000/svg")
+      svgClone.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink")
       
-      // Add background rect
+      // Update viewBox to include padding offset
+      svgClone.setAttribute("viewBox", `${bbox.x - padding} ${bbox.y - padding} ${width} ${height}`)
+      
+      // Add background rect as first child
       const bgRect = document.createElementNS("http://www.w3.org/2000/svg", "rect")
-      bgRect.setAttribute("width", "100%")
-      bgRect.setAttribute("height", "100%")
+      bgRect.setAttribute("x", String(bbox.x - padding))
+      bgRect.setAttribute("y", String(bbox.y - padding))
+      bgRect.setAttribute("width", String(width))
+      bgRect.setAttribute("height", String(height))
       bgRect.setAttribute("fill", isDarkMode ? "#1f1f1f" : "#ffffff")
       svgClone.insertBefore(bgRect, svgClone.firstChild)
+      
+      // Inline all computed styles into the SVG elements for proper rendering
+      const allElements = svgClone.querySelectorAll("*")
+      allElements.forEach((el) => {
+        if (el instanceof SVGElement) {
+          const computedStyle = window.getComputedStyle(
+            svgElement.querySelector(`#${el.id}`) || el
+          )
+          // Copy important style properties
+          const fill = el.getAttribute("fill") || computedStyle.fill
+          const stroke = el.getAttribute("stroke") || computedStyle.stroke
+          if (fill && fill !== "none") el.setAttribute("fill", fill)
+          if (stroke && stroke !== "none") el.setAttribute("stroke", stroke)
+        }
+      })
 
       const svgData = new XMLSerializer().serializeToString(svgClone)
 
@@ -158,10 +185,18 @@ export function MermaidVisualizer() {
       const response = await fetch("/api/convert-svg", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ svg: svgData, width: width * 2, height: height * 2 }),
+        body: JSON.stringify({ 
+          svg: svgData, 
+          width: width * 2, 
+          height: height * 2,
+          isDark: isDarkMode 
+        }),
       })
 
-      if (!response.ok) throw new Error("Conversion failed")
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || "Conversion failed")
+      }
 
       const blob = await response.blob()
       const url = URL.createObjectURL(blob)
@@ -213,11 +248,17 @@ export function MermaidVisualizer() {
                   onClick={() => setMermaidTheme(theme.value)}
                   className={mermaidTheme === theme.value ? "bg-accent" : ""}
                 >
-                  <div className="flex flex-col">
-                    <span>{theme.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {theme.description}
-                    </span>
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="h-3 w-3 rounded-full shrink-0" 
+                      style={{ backgroundColor: theme.preview }}
+                    />
+                    <div className="flex flex-col">
+                      <span>{theme.name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {theme.description}
+                      </span>
+                    </div>
                   </div>
                 </DropdownMenuItem>
               ))}
