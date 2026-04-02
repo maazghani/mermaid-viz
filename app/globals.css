@@ -51,6 +51,7 @@
 @theme inline {
   --font-sans: 'Geist', 'Geist Fallback';
   --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --font-diagram: 'Inter', system-ui, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -87,8 +88,26 @@
 
 /* Mermaid diagram container styles */
 .mermaid-preview svg {
-  max-width: 100%;
+  max-width: none;
   height: auto;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.mermaid-preview svg text,
+.mermaid-preview svg .nodeLabel,
+.mermaid-preview svg .edgeLabel,
+.mermaid-preview svg .label,
+.mermaid-preview svg .labelText,
+.mermaid-preview svg foreignObject {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif !important;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.mermaid-preview svg .node rect,
+.mermaid-preview svg .node polygon,
+.mermaid-preview svg .node circle {
+  stroke-width: 1.5px;
 }
 
 /* Custom scrollbar for code editor */
