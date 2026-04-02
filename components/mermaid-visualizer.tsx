@@ -105,37 +105,66 @@ export function MermaidVisualizer() {
     const svgElement = previewRef.current.querySelector("svg")
     if (!svgElement) return
 
-    const canvas = document.createElement("canvas")
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
+    try {
+      // Get actual SVG dimensions
+      const bbox = svgElement.getBBox()
+      const padding = 20
+      const width = Math.ceil(bbox.width) + padding * 2
+      const height = Math.ceil(bbox.height) + padding * 2
+      const scale = 2
 
-    const svgData = new XMLSerializer().serializeToString(svgElement)
-    const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" })
-    const svgUrl = URL.createObjectURL(svgBlob)
+      // Create canvas
+      const canvas = document.createElement("canvas")
+      canvas.width = width * scale
+      canvas.height = height * scale
 
-    const img = new Image()
-    img.crossOrigin = "anonymous"
-    
-    img.onload = () => {
-      const scale = 2 // Higher resolution
-      canvas.width = img.width * scale
-      canvas.height = img.height * scale
-      
+      const ctx = canvas.getContext("2d", { willReadFrequently: true })
+      if (!ctx) return
+
+      // Fill background
       ctx.fillStyle = isDarkMode ? "#1f1f1f" : "#ffffff"
       ctx.fillRect(0, 0, canvas.width, canvas.height)
-      ctx.scale(scale, scale)
-      ctx.drawImage(img, 0, 0)
 
-      const pngUrl = canvas.toDataURL("image/png")
-      const link = document.createElement("a")
-      link.download = "mermaid-diagram.png"
-      link.href = pngUrl
-      link.click()
+      // Serialize SVG
+      const svgData = new XMLSerializer().serializeToString(svgElement)
+      const svg64 = btoa(unescape(encodeURIComponent(svgData)))
+      const dataUrl = `data:image/svg+xml;base64,${svg64}`
 
-      URL.revokeObjectURL(svgUrl)
+      // Create image and load SVG
+      const img = new Image()
+      img.onload = () => {
+        try {
+          ctx.scale(scale, scale)
+          ctx.drawImage(img, padding, padding)
+          
+          // Convert to blob and download
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) return
+              const url = URL.createObjectURL(blob)
+              const link = document.createElement("a")
+              link.href = url
+              link.download = "mermaid-diagram.png"
+              document.body.appendChild(link)
+              link.click()
+              document.body.removeChild(link)
+              URL.revokeObjectURL(url)
+            },
+            "image/png"
+          )
+        } catch (err) {
+          console.error("[v0] Error drawing image to canvas:", err)
+        }
+      }
+
+      img.onerror = () => {
+        console.error("[v0] Error loading SVG image")
+      }
+
+      img.src = dataUrl
+    } catch (err) {
+      console.error("[v0] Download error:", err)
     }
-
-    img.src = svgUrl
   }
 
   return (
